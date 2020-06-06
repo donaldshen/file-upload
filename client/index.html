@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <!-- 开发版才能唤起 vue-dev-tools -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11/dist/vue.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/element-ui/lib/theme-chalk/index.css"
+    />
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <input type="file" @change="onFileChange" />
+      <el-button @click="upload">上传</el-button>
+      <div>计算文件 hash</div>
+      <el-progress :percentage="hashProgress" />
+    </div>
+    <script>
+      new Vue({
+        el: "#app",
+        data: {
+          file: null,
+          status: "idle", // idle | uploading
+          hashProgress: 0, // 0 - 100
+        },
+        methods: {
+          onFileChange(e) {
+            const [file] = e.target.files;
+            this.file = file;
+          },
+          async upload() {
+            const { file } = this;
+            if (!file) return;
+
+            this.status = "loading";
+            const chunks = createChunks(file);
+            await new Promise((resolve) => {
+              calculateHash(chunks, ({progress, hash}) => {
+                this.hashProgress = progress
+                if (hash) resolve(hash)
+              })
+            });
+          },
+        },
+      });
+
+      const chunkSize = 10 * 1024 ** 2; // 切片大小
+      function createChunks(file, size = chunkSize) {
+        const chunks = [];
+        for (let i = 0; i < file.size; i += size) {
+          chunks.push(file.slice(i, size));
+        }
+        return chunks;
+      }
+
+      function calculateHash(chunks, cb) {
+        const worker = new Worker("hash.js");
+        worker.postMessage(chunks);
+        worker.onmessage = (e) => {
+          cb(e.data);
+        };
+      }
+    </script>
+  </body>
+</html>

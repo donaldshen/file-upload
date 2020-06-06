@@ -1,0 +1,14 @@
+{
+  "name": "file-upload",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/donaldshen/file-upload.git",
+  "author": "Donald Shen <825870831@qq.com>",
+  "license": "MIT",
+  "scripts": {
+    "client": "browser-sync client -w"
+  },
+  "dependencies": {
+    "browser-sync": "^2.26.7"
+  }
+}

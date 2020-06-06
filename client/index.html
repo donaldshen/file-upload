@@ -11,6 +11,7 @@
       href="https://unpkg.com/element-ui/lib/theme-chalk/index.css"
     />
     <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   </head>
   <body>
     <div id="app">
@@ -31,6 +32,7 @@
           onFileChange(e) {
             const [file] = e.target.files;
             this.file = file;
+            this.upload() // 方便测试
           },
           async upload() {
             const { file } = this;
@@ -38,12 +40,16 @@
 
             this.status = "loading";
             const chunks = createChunks(file);
-            await new Promise((resolve) => {
-              calculateHash(chunks, ({progress, hash}) => {
-                this.hashProgress = progress
-                if (hash) resolve(hash)
-              })
+            const hash = await new Promise((resolve) => {
+              calculateHash(chunks, ({ progress, hash }) => {
+                this.hashProgress = progress;
+                if (hash) resolve(hash);
+              });
             });
+            const { shouldUpload, uploadedList } = await verifyUpload(
+              file.name,
+              hash
+            );
           },
         },
       });
@@ -63,6 +69,11 @@
         worker.onmessage = (e) => {
           cb(e.data);
         };
+      }
+
+      const serverHost = "//localhost:3333";
+      function verifyUpload(fileName, fileHash) {
+        return axios.post(`${serverHost}/verify`, { fileName, fileHash });
       }
     </script>
   </body>

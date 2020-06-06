@@ -6,9 +6,12 @@
   "author": "Donald Shen <825870831@qq.com>",
   "license": "MIT",
   "scripts": {
-    "client": "browser-sync client -w"
+    "client": "browser-sync client -w",
+    "server": "nodemon server"
   },
   "dependencies": {
-    "browser-sync": "^2.26.7"
+    "browser-sync": "^2.26.7",
+    "fs-extra": "^9.0.1",
+    "nodemon": "^2.0.4"
   }
 }

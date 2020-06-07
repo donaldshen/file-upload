@@ -27,7 +27,7 @@
         >
         <el-table-column label="大小（KB）" align="center" width="120">
           <template v-slot="{ row }">
-            {{ row.size }}
+            {{ (row.size / 1024).toFixed(1) }}
           </template>
         </el-table-column>
         <el-table-column label="进度" align="center">
@@ -88,25 +88,29 @@
             this.uploadChunks(hash, chunks, uploadedChunks)
           },
           async uploadChunks(hash, chunks, uploadedChunks) {
-            console.log(chunks, uploadedChunks)
-            // return
+            console.log(chunks)
+            const fileName = this.file.name
             const requests = chunks.map(async (c, i) => {
               if (uploadedChunks.has(i)) return
               const formData = new FormData()
               formData.append('hash', hash)
               formData.append('chunk', c)
               formData.append('index', i)
-              formData.append('fileName', this.file.name)
+              formData.append('fileName', fileName)
               return axios.post(SERVER_HOST, formData, {
                 onUploadProgress: (e) => {
-                  this.uploadProgress[i].progress = (e.loaded / e.total) * 100
+                  this.uploadProgress[i].progress = +((e.loaded / e.total) * 100).toFixed(1)
                 },
               })
             })
             await Promise.all(requests)
-            // axios.post(`${SERVER_HOST}/merge`, {
-            //   chunkSize: CHUNK_SIZE
-            // })
+            await axios.post(`${SERVER_HOST}/merge`, {
+              chunkSize: CHUNK_SIZE,
+              hash,
+              fileName,
+            })
+            this.$message.success('上传成功')
+            this.status = 'idle'
           },
         },
       })

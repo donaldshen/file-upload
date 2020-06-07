@@ -2,7 +2,6 @@ const http = require('http')
 const path = require('path')
 const fse = require('fs-extra')
 const Busboy = require('busboy')
-const util = require('util')
 
 const server = http.createServer()
 const UPLOAD_DIR = path.resolve(__dirname, 'files')
@@ -28,7 +27,7 @@ server.listen(3333, () => console.log('start listening to 3333'))
 const controller = {
   async handleVerifyUpload(req, res) {
     // 文件在服务器是以 hash 存储的，感觉直接传 hash + ext 也可以
-    const { fileName, hash } = await readFromStream(req)
+    const { fileName, hash } = JSON.parse(await readFromStream(req))
     const ext = path.extname(fileName)
     const newFileName = hash + ext
     const filePath = path.resolve(UPLOAD_DIR, newFileName)
@@ -41,31 +40,32 @@ const controller = {
   },
   async handleUpload(req, res) {
     const busboy = new Busboy({ headers: req.headers })
-    busboy.on('file', function (fieldname, file, filename, encoding, mimetype) {
-      console.log(
-        'File [' +
-          fieldname +
-          ']: filename: ' +
-          filename +
-          ', encoding: ' +
-          encoding +
-          ', mimetype: ' +
-          mimetype,
-      )
-      file.on('data', function (data) {
-        console.log('File [' + fieldname + '] got ' + data.length + ' bytes')
-      })
-      file.on('end', function () {
-        console.log('File [' + fieldname + '] Finished')
-      })
+    const data = {}
+    busboy.on('file', async (fieldname, file) => {
+      // 这里不 read 就不会 finish
+      data[fieldname] = readFromStream(file)
+      // console.log('file', fieldname, typeof data[fieldname])
     })
-    busboy.on('field', function (fieldname, val) {
-      console.log('Field [' + fieldname + ']: value: ' + util.inspect(val))
+    busboy.on('field', (fieldname, val) => {
+      console.log('field', fieldname, val)
+      data[fieldname] = val
     })
-    busboy.on('finish', function () {
-      console.log('Done parsing form!')
-      // res.writeHead(303, { Connection: 'close', Location: '/' })
-      res.end()
+    busboy.on('finish', async () => {
+      const { hash, chunk, index, fileName } = data
+      console.log('finish', typeof chunk)
+      const ext = path.extname(fileName)
+      // 源文件已存在，chunk 不必保存
+      const filePath = path.resolve(UPLOAD_DIR, hash + ext)
+      if (fse.existsSync(filePath)) {
+        res.end('file exist')
+      } else {
+        const chunkDir = path.resolve(UPLOAD_DIR, hash)
+        const chunkName = getChunkName(hash, index)
+        const data = await chunk
+        console.log('data', data.length)
+        await fse.outputFile(path.resolve(chunkDir, chunkName), data)
+        res.end('chunk received')
+      }
     })
     req.pipe(busboy)
   },
@@ -75,14 +75,14 @@ function readFromStream(stream) {
   return new Promise((resolve) => {
     let result = ''
     stream.on('data', (d) => (result += d))
-    stream.on('end', () => resolve(JSON.parse(result)))
+    stream.on('end', () => resolve(result))
   })
 }
 
-function getUploadedChunks(hash) {
+async function getUploadedChunks(hash) {
   const chunksPath = path.resolve(UPLOAD_DIR, hash)
   if (fse.existsSync(chunksPath)) {
-    return fse.readdir(chunksPath).map(getIndex)
+    return (await fse.readdir(chunksPath)).map(getIndex)
   } else {
     return []
   }

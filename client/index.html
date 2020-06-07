@@ -94,7 +94,7 @@
       function createChunks(file, size = CHUNK_SIZE) {
         const chunks = []
         for (let i = 0; i < file.size; i += size) {
-          chunks.push(file.slice(i, size))
+          chunks.push(file.slice(i, i + size))
         }
         return chunks
       }
@@ -108,7 +108,7 @@
       }
 
       function verifyUpload(fileName, hash) {
-        return axios.post(`${SERVER_HOST}/verify`, { fileName, hash })
+        return axios.post(`${SERVER_HOST}/verify`, { fileName, hash }).then(resp => resp.data)
       }
     </script>
   </body>

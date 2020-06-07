@@ -21,59 +21,94 @@
       <el-progress :percentage="hashProgress" />
     </div>
     <script>
+      const SERVER_HOST = '//localhost:3333'
+      const CHUNK_SIZE = 2 * 1024 ** 2 // 切片大小
+
       new Vue({
-        el: "#app",
+        el: '#app',
         data: {
           file: null,
-          status: "idle", // idle | uploading
+          status: 'idle', // idle | uploading
           hashProgress: 0, // 0 - 100
         },
         methods: {
           onFileChange(e) {
-            const [file] = e.target.files;
-            this.file = file;
+            const [file] = e.target.files
+            this.file = file
             this.upload() // 方便测试
           },
           async upload() {
-            const { file } = this;
-            if (!file) return;
+            const { file } = this
+            if (!file) return
 
-            this.status = "loading";
-            const chunks = createChunks(file);
+            this.status = 'loading'
+            const chunks = createChunks(file)
             const hash = await new Promise((resolve) => {
               calculateHash(chunks, ({ progress, hash }) => {
-                this.hashProgress = progress;
-                if (hash) resolve(hash);
-              });
-            });
-            const { shouldUpload, uploadedList } = await verifyUpload(
+                this.hashProgress = progress
+                if (hash) resolve(hash)
+              })
+            })
+            let { uploaded, uploadedChunks } = await verifyUpload(
               file.name,
-              hash
-            );
+              hash,
+            )
+            if (uploaded) {
+              this.$message.success('秒传：上传成功')
+              this.status = 'idle'
+              return
+            }
+
+            uploadedChunks = new Set(uploadedChunks)
+            this.uploadProgress = chunks.map((c, i) => ({
+              index: i,
+              progress: uploadedChunks.has(i) ? 100 : 0,
+              // TODO:
+            }))
+            this.uploadChunks(hash, chunks, uploadedChunks)
+          },
+          async uploadChunks(hash, chunks, uploadedChunks) {
+            console.log(chunks, uploadedChunks)
+            // return
+            const requests = chunks.map(async (c, i) => {
+              if (uploadedChunks.has(i)) return
+              const formData = new FormData()
+              formData.append('hash', hash)
+              formData.append('chunk', c)
+              formData.append('index', i)
+              formData.append('fileName', this.file.name)
+              return axios.post(SERVER_HOST, formData, {
+                onUploadProgress: (e) => {
+                  this.uploadProgress[i] = (e.loaded / e.total) * 100
+                },
+              })
+            })
+            await Promise.all(requests)
+            // axios.post(`${SERVER_HOST}/merge`, {
+            //   chunkSize: CHUNK_SIZE
+            // })
           },
         },
-      });
+      })
 
-      const chunkSize = 10 * 1024 ** 2; // 切片大小
-      function createChunks(file, size = chunkSize) {
-        const chunks = [];
+      function createChunks(file, size = CHUNK_SIZE) {
+        const chunks = []
         for (let i = 0; i < file.size; i += size) {
-          chunks.push(file.slice(i, size));
+          chunks.push(file.slice(i, size))
         }
-        return chunks;
+        return chunks
       }
 
       function calculateHash(chunks, cb) {
-        const worker = new Worker("hash.js");
-        worker.postMessage(chunks);
+        const worker = new Worker('hash.js')
+        worker.postMessage(chunks)
         worker.onmessage = (e) => {
-          cb(e.data);
-        };
+          cb(e.data)
+        }
       }
 
-      const serverHost = "//localhost:3333";
-      function verifyUpload(fileName, fileHash) {
-        return axios.post(`${serverHost}/verify`, { fileName, fileHash });
+      function verifyUpload(fileName, hash) {
+        return axios.post(`${SERVER_HOST}/verify`, { fileName, hash })
       }
     </script>
   </body>

@@ -18,7 +18,27 @@
       <input type="file" @change="onFileChange" />
       <el-button @click="upload">上传</el-button>
       <div>计算文件 hash</div>
-      <el-progress :percentage="hashProgress" />
+      <el-progress :percentage="hashProgress"></el-progress>
+      <el-table :data="uploadProgress">
+        <el-table-column label="chunk 编号" width="100">
+          <template v-slot="{ $index }">
+            {{ $index }}
+          </template></el-table-column
+        >
+        <el-table-column label="大小（KB）" align="center" width="120">
+          <template v-slot="{ row }">
+            {{ row.size }}
+          </template>
+        </el-table-column>
+        <el-table-column label="进度" align="center">
+          <template v-slot="{ row }">
+            <el-progress
+              :percentage="row.progress"
+              color="#909399"
+            ></el-progress>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
     <script>
       const SERVER_HOST = '//localhost:3333'
@@ -30,6 +50,7 @@
           file: null,
           status: 'idle', // idle | uploading
           hashProgress: 0, // 0 - 100
+          uploadProgress: [],
         },
         methods: {
           onFileChange(e) {
@@ -61,9 +82,8 @@
 
             uploadedChunks = new Set(uploadedChunks)
             this.uploadProgress = chunks.map((c, i) => ({
-              index: i,
+              size: c.size,
               progress: uploadedChunks.has(i) ? 100 : 0,
-              // TODO:
             }))
             this.uploadChunks(hash, chunks, uploadedChunks)
           },
@@ -79,7 +99,7 @@
               formData.append('fileName', this.file.name)
               return axios.post(SERVER_HOST, formData, {
                 onUploadProgress: (e) => {
-                  this.uploadProgress[i] = (e.loaded / e.total) * 100
+                  this.uploadProgress[i].progress = (e.loaded / e.total) * 100
                 },
               })
             })
@@ -108,7 +128,9 @@
       }
 
       function verifyUpload(fileName, hash) {
-        return axios.post(`${SERVER_HOST}/verify`, { fileName, hash }).then(resp => resp.data)
+        return axios
+          .post(`${SERVER_HOST}/verify`, { fileName, hash })
+          .then((resp) => resp.data)
       }
     </script>
   </body>

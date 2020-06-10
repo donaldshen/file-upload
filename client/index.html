@@ -15,8 +15,11 @@
   </head>
   <body>
     <div id="app">
-      <input type="file" @change="onFileChange" />
-      <el-button @click="upload">上传</el-button>
+      <input ref="input" type="file" @change="onFileChange" />
+      <el-button type="primary" @click="upload">上传</el-button>
+      <el-button @click="reset">重置</el-button>
+      <img v-if="srcBase64" :src="srcBase64" />
+      <img v-if="srcUrl" :src="srcUrl" />
       <div>计算文件 hash</div>
       <el-progress :percentage="hashProgress"></el-progress>
       <el-table :data="uploadProgress">
@@ -46,17 +49,32 @@
 
       new Vue({
         el: '#app',
-        data: {
+        data: () => ({
           file: null,
           status: 'idle', // idle | uploading
           hashProgress: 0, // 0 - 100
           uploadProgress: [],
-        },
+          srcBase64: '',
+          srcUrl: '',
+        }),
         methods: {
+          reset() {
+            Object.assign(this, this.$options.data())
+            this.$refs.input.value = ''
+          },
           onFileChange(e) {
             const [file] = e.target.files
             this.file = file
             this.upload() // 方便测试
+            if (/image/.test(file.type)) this.previewImg()
+          },
+          previewImg() {
+            const reader = new FileReader()
+            reader.onload = () => {
+              this.srcBase64 = reader.result
+            }
+            reader.readAsDataURL(this.file)
+            this.srcUrl = URL.createObjectURL(this.file)
           },
           async upload() {
             const { file } = this
@@ -88,7 +106,6 @@
             this.uploadChunks(hash, chunks, uploadedChunks)
           },
           async uploadChunks(hash, chunks, uploadedChunks) {
-            console.log(chunks)
             const fileName = this.file.name
             const requests = chunks.map(async (c, i) => {
               if (uploadedChunks.has(i)) return
@@ -99,7 +116,10 @@
               formData.append('fileName', fileName)
               return axios.post(SERVER_HOST, formData, {
                 onUploadProgress: (e) => {
-                  this.uploadProgress[i].progress = +((e.loaded / e.total) * 100).toFixed(1)
+                  this.uploadProgress[i].progress = +(
+                    (e.loaded / e.total) *
+                    100
+                  ).toFixed(1)
                 },
               })
             })
